@@ -1,6 +1,7 @@
 {
     "title": "Freepoint 的记事本",
-    "subTitle": "修仙尽头谁为峰",
+    "subTitle": "凡人启示录",
     "avatarUrl": "https://github.com/freepoint-jsj.png",
     "GMEEK_VERSION": "last"
+    "style": "html,body{height:100%}body{display:flex;flex-direction:column}#content{flex:1}#footer{padding:24px;text-align:center;font-size:small}"
 }
