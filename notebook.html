@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>RetroNote v2.5 - 可调侧边栏版</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #669999; 
+            --window-bg: #d4d0c8; 
+            --border-light: #ffffff;
+            --border-dark: #707070;
+            --title-bg: linear-gradient(90deg, #000080, #5080c0);
+        }
+
+        body {
+            background-color: var(--bg-color);
+            margin: 0; padding: 15px;
+            font-family: "PingFang SC", "Microsoft YaHei", "SimSun", sans-serif;
+            height: 95vh; display: flex; justify-content: center;
+            overflow: hidden; /* 防止页面本身滚动 */
+        }
+
+        #window {
+            width: 100%; max-width: 1300px;
+            background: var(--window-bg);
+            border: 2px solid; border-color: var(--border-light) var(--border-dark) var(--border-dark) var(--border-light);
+            box-shadow: 6px 6px 0px rgba(0,0,0,0.2);
+            display: flex; flex-direction: column;
+        }
+
+        #title-bar {
+            background: var(--title-bg); padding: 4px 10px; color: white;
+            font-weight: bold; display: flex; justify-content: space-between; font-size: 12px;
+            user-select: none;
+        }
+
+        #main-body { flex: 1; display: flex; overflow: hidden; padding: 4px; gap: 0; }
+
+        /* 内容区：现在使用 flex: 1 填满剩余空间 */
+        #content-area {
+            flex: 1; background: white; border: 2px inset #fff;
+            padding: 40px 50px; overflow-y: scroll; scroll-behavior: smooth;
+        }
+
+        /* 重点：侧边栏调节柄 */
+        #resizer {
+            width: 8px;
+            cursor: col-resize;
+            background: var(--window-bg);
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+        }
+        /* 调节柄上的复古装饰线 */
+        #resizer::after {
+            content: "";
+            height: 30px;
+            width: 2px;
+            border-left: 1px solid var(--border-light);
+            border-right: 1px solid var(--border-dark);
+        }
+
+        /* 侧边栏：初始宽度 250px */
+        #sidebar {
+            width: 250px; 
+            min-width: 150px; 
+            max-width: 600px;
+            background: #fff; border: 2px inset #fff;
+            display: flex; flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar-header { background: #808080; color: white; padding: 4px 8px; font-size: 12px; font-weight: bold; border-bottom: 1px solid #000; }
+        #toc-list { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 5px 0; margin: 0; list-style: none; font-size: 13px; }
+
+        /* 目录项样式 */
+        .toc-group { margin-bottom: 10px; border-bottom: 1px solid #f0f0f0; padding-bottom: 10px; }
+        .toc-note-title { 
+            padding: 4px 10px; font-weight: bold; color: #000; cursor: pointer;
+            background: #e9e9e9; margin-bottom: 2px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .toc-item {
+            padding: 3px 10px; cursor: pointer;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            color: #555; border-left: 1px solid #ddd; margin-left: 15px;
+        }
+        .toc-item:hover { color: #000080; text-decoration: underline; background: #f9f9f9; }
+        .level-2 { margin-left: 30px; }
+        .level-3 { margin-left: 45px; font-size: 12px; color: #777; }
+
+        /* 内容文本样式 */
+        .rendered-content h1:first-child, .rendered-content h2:first-child {
+            text-align: center; font-size: 26px; 
+            margin: 20px 0 50px 0; border-bottom: 2px solid #333; padding-bottom: 15px;
+        }
+        .note-entry { margin-bottom: 80px; }
+
+        /* 输入面板 */
+        #input-panel { padding: 8px; background: var(--window-bg); border-top: 1px solid var(--border-dark); }
+        textarea {
+            width: 100%; height: 80px; box-sizing: border-box;
+            border: 2px inset #fff; padding: 10px; font-family: inherit; resize: none; outline: none;
+        }
+        .btn {
+            background: var(--window-bg); border: 2px solid;
+            border-color: var(--border-light) var(--border-dark) var(--border-dark) var(--border-light);
+            padding: 4px 15px; cursor: pointer; float: right; font-weight: bold; margin-top: 4px; font-size: 12px;
+        }
+        .btn:active { border-color: var(--border-dark) var(--border-light) var(--border-light) var(--border-dark); }
+        
+        ::-webkit-scrollbar { width: 16px; background: #d4d0c8; }
+        ::-webkit-scrollbar-thumb { background: #eee; border: 2px solid; border-color: #fff #808080 #808080 #fff; }
+    </style>
+</head>
+<body>
+
+<div id="window">
+    <div id="title-bar">
+        <span>C:\SYSTEM\RESIZABLE_ARCHIVE.EXE</span>
+        <div>[ _ ] [ □ ] [ X ]</div>
+    </div>
+
+    <div id="main-body">
+        <!-- 左侧内容 -->
+        <div id="content-area"><div id="history"></div></div>
+
+        <!-- 中间调节柄 -->
+        <div id="resizer" title="按住拖拽调节宽度"></div>
+
+        <!-- 右侧目录 -->
+        <div id="sidebar">
+            <div class="sidebar-header">大纲视图 (Outline Tree)</div>
+            <div id="toc-list"></div>
+        </div>
+    </div>
+
+    <div id="input-panel">
+        <textarea id="editor" placeholder="第一行标题... # 二级标题 ## 三级标题"></textarea>
+        <button class="btn" id="save-btn">提交存档</button>
+        <div style="clear:both"></div>
+    </div>
+</div>
+
+<script>
+    const editor = document.getElementById('editor');
+    const history = document.getElementById('history');
+    const tocList = document.getElementById('toc-list');
+    const resizer = document.getElementById('resizer');
+    const sidebar = document.getElementById('sidebar');
+
+    // --- 1. 核心：实现拖拽逻辑 ---
+    let isResizing = false;
+
+    resizer.addEventListener('mousedown', function(e) {
+        isResizing = true;
+        document.body.style.cursor = 'col-resize';
+        // 增加覆盖层防止拖拽时选中文字
+        document.body.style.userSelect = 'none';
+    });
+
+    document.addEventListener('mousemove', function(e) {
+        if (!isResizing) return;
+
+        // 计算新的宽度：窗口总宽度 - 鼠标当前位置 - 边距
+        // 因为侧边栏在右边，所以是右侧距离
+        const windowWidth = document.body.clientWidth;
+        const newWidth = windowWidth - e.clientX - 20; // 20是边距修正
+
+        if (newWidth > 150 && newWidth < 600) {
+            sidebar.style.width = newWidth + 'px';
+        }
+    });
+
+    document.addEventListener('mouseup', function() {
+        isResizing = false;
+        document.body.style.cursor = 'default';
+        document.body.style.userSelect = 'auto';
+    });
+
+    // --- 2. 笔记解析与渲染逻辑 ---
+    function parseStructure(text) {
+        const lines = text.split('\n');
+        const firstLine = lines[0] ? lines[0].replace(/[#*`]/g, '').trim() : "未命名笔记";
+        const subHeaders = [];
+        for (let i = 1; i < lines.length; i++) {
+            const match = lines[i].match(/^(#{1,3})\s+(.*)/);
+            if (match) {
+                subHeaders.push({ level: match[1].length, text: match[2].replace(/[#*`]/g, '').trim() });
+            }
+        }
+        return { title: firstLine, subHeaders };
+    }
+
+    function loadNotes() {
+        const notes = JSON.parse(localStorage.getItem('retro_notes_v2.5') || '[]');
+        
+        history.innerHTML = notes.map((n, idx) => `
+            <div class="note-entry" id="note-block-${idx}">
+                <div style="font-size:10px; color:#ccc; margin-bottom:5px;">GUID: ${idx} | ${n.time}</div>
+                <div class="rendered-content">${marked.parse(n.text)}</div>
+            </div>
+            <hr style="border:none; border-top:1px dashed #eee; margin:40px 0;">
+        `).join('');
+
+        let tocHtml = '';
+        notes.forEach((n, idx) => {
+            const struct = parseStructure(n.text);
+            tocHtml += `<div class="toc-group">`;
+            tocHtml += `<div class="toc-note-title" onclick="jumpTo('note-block-${idx}')" title="${struct.title}">📁 ${struct.title}</div>`;
+            struct.subHeaders.forEach(h => {
+                tocHtml += `<div class="toc-item level-${h.level}" onclick="jumpToText(${idx}, '${h.text}')" title="${h.text}">
+                    ${h.text}
+                </div>`;
+            });
+            tocHtml += `</div>`;
+        });
+        tocList.innerHTML = tocHtml;
+    }
+
+    function jumpTo(id) { document.getElementById(id).scrollIntoView({ behavior: 'smooth' }); }
+
+    function jumpToText(noteIdx, text) {
+        const container = document.querySelectorAll('.note-entry')[noteIdx];
+        const allHeaders = container.querySelectorAll('h1, h2, h3');
+        for (let h of allHeaders) {
+            if (h.innerText.trim().includes(text)) {
+                h.scrollIntoView({ behavior: 'smooth' });
+                break;
+            }
+        }
+    }
+
+    function addNote() {
+        const val = editor.value.trim();
+        if (!val) return;
+        const notes = JSON.parse(localStorage.getItem('retro_notes_v2.5') || '[]');
+        notes.push({ time: new Date().toLocaleString(), text: val });
+        localStorage.setItem('retro_notes_v2.5', JSON.stringify(notes));
+        editor.value = '';
+        loadNotes();
+        setTimeout(() => { document.getElementById('content-area').scrollTop = document.getElementById('content-area').scrollHeight; }, 100);
+    }
+
+    editor.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') addNote(); });
+    document.getElementById('save-btn').onclick = addNote;
+    
+    loadNotes();
+</script>
+
+</body>
+</html>
